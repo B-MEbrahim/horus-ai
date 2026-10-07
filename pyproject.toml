@@ -1,0 +1,36 @@
+[project]
+name = "horus-ai"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.142.2",
+    "filterpy>=1.4.5",
+    "matplotlib>=3.11.2",
+    "mlflow>=3.17.0",
+    "numpy>=2.5.3",
+    "onnx>=1.23.2",
+    "onnxruntime>=1.30.0",
+    "pandas>=3.0.6",
+    "pydantic>=2.13.5",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
+    "torch>=2.14.1",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+horus-ai = "horus_ai:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "jupyter>=1.1.1",
+    "pytest>=9.1.1",
+]
