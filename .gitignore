@@ -16,3 +16,6 @@ docs/
 mlflow.db
 mlartifacts/
 mlruns/
+
+# data
+datasets/
