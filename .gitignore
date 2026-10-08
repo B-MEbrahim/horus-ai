@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# docs
+docs/
+
+# tracking
+mlflow.db
+mlartifacts/
+mlruns/
