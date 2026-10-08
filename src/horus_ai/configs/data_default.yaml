@@ -1,0 +1,35 @@
+seed: 42
+duration_s: 7200
+
+network:
+  protocol: ptp
+  n_towers: 4
+  sample_interval_s: 1.0
+  threshold_ns: 1500
+
+baseline:
+  initial_offset_std_ns: 100
+  jitter_std_ns: 50
+  drift_ppb_range: [-10, 10]
+  wander_std_ns: 1.0
+
+attack:
+  enabled: true
+  attack_type: gradual_drift
+  start_s: 3600
+  duration_s: null
+  affected_towers: [0]
+  jump_ns: 2000
+  push_rate_ns_per_s: 2.0
+
+output:
+  format: csv
+  layout: long
+  output_dir: data/synthetic
+  file_stem: synthetic_run
+  include_label: true
+  columns:
+    timestamp: timestamp
+    tower_id: tower_id
+    offset_ns: offset_ns
+    label: label
