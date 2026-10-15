@@ -1,4 +1,4 @@
-"""Window-level classification metrics for the HORUS detector.
+"""Window-level classification metrics for the detector.
 
 Convention: 1 = attack (positive), 0 = normal (negative).
 Every function takes two 1-D arrays with one entry per window:
@@ -24,14 +24,14 @@ def _to_binary(name: str, values) -> np.ndarray:
     if arr.ndim != 1:
         raise ValueError(f"{name} must be a 1-D array, got shape {arr.shape}")
     if not np.isin(arr, (0, 1)).all():
-        raise ValueError(f"{name} must only contain 0s and 1s, got {np.unique(arr)}")
+        raise ValueError(f"{name} must contain only 0/1 values")
     return arr.astype(int)
 
 def _prepare(y_true, y_pred) -> tuple[np.ndarray, np.ndarray]:
     t = _to_binary("y_true", y_true)
     p = _to_binary("y_pred", y_pred)
     if t.shape != p.shape:
-        raise ValueError(f"y_true and y_pred must have the same shape, got {t.shape} and {p.shape}")
+        raise ValueError(f"length mismatch: y_true={t.shape[0]}, y_pred={p.shape[0]}")
     return t, p
 
 def _safe_divide(numerator: float, denominator: float) -> float:
