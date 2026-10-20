@@ -1,0 +1,11 @@
+{
+  "mode": "record",
+  "tower_id": "ovs1",
+  "log_path": "/var/log/ptp4l.log",
+  "output_dir": "/var/lib/horus",
+  "output_max_mb": 100,
+  "from_start": false,
+  "pmc_enabled": true,
+  "pmc_cmd": "pmc -u -b 0",
+  "pmc_interval": 10.0
+}

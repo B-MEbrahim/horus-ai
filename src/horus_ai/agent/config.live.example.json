@@ -1,0 +1,12 @@
+{
+  "mode": "live",
+  "tower_id": "ovs1",
+  "api_url": "http://10.0.20.5:8000",
+  "log_path": "/var/log/ptp4l.log",
+  "flush_interval": 1.0,
+  "batch_max": 50,
+  "heartbeat_interval": 5.0,
+  "pmc_enabled": true,
+  "pmc_cmd": "pmc -u -b 0",
+  "pmc_interval": 10.0
+}
