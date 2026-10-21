@@ -10,11 +10,12 @@ Two forms, guaranteed to behave identically:
 """
 
 from __future__ import annotations
+
 import numpy as np
 
 
 def _check_n(n: int) -> int:
-    if not isinstance(n, np.integer) or isinstance(n, bool) or n < 1:
+    if not isinstance(n, (int, np.integer)) or isinstance(n, bool) or n < 1:
         raise ValueError(f"n must be an integer >= 1, got {n!r}")
     return int(n)
 
@@ -26,7 +27,7 @@ class AlertDebouncer:
     stays on while the run continues, and turns off at the first normal window.
     """
 
-    def __init__(self, n:int):
+    def __init__(self, n: int):
         self.n = _check_n(n)
         self._run_length = 0
 
@@ -39,7 +40,7 @@ class AlertDebouncer:
         """Consume one window's raw flag; return True if the alarm is active."""
         if flag not in (0, 1, True, False):
             raise ValueError(f"flag must be 0/1, got {flag!r}")
-        self._run_length = self._run_length + 1 if flag else 0 
+        self._run_length = self._run_length + 1 if flag else 0
         return self._run_length >= self.n
 
     def reset(self) -> None:
@@ -47,7 +48,7 @@ class AlertDebouncer:
         self._run_length = 0
 
 
-def debounce(flags, n:int) -> np.ndarray:
+def debounce(flags, n: int) -> np.ndarray:
     """Batch version: raw 0/1 flags in, 0/1 alarms out (same length).
 
     Implemented by replaying the flags through AlertDebouncer, so offline
@@ -57,7 +58,7 @@ def debounce(flags, n:int) -> np.ndarray:
     if arr.ndim != 1:
         raise ValueError(f"flags must be 1-D, got shape {arr.shape}")
     if not np.isin(arr, (0, 1)).all():
-        raise ValueError(f"flags must contain only 0/1 values")
+        raise ValueError("flags must contain only 0/1 values")
 
     debouncer = AlertDebouncer(n)
     return np.array([debouncer.update(int(f)) for f in arr], dtype=int)
