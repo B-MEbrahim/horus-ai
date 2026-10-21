@@ -22,7 +22,7 @@ import numpy as np
 from .metrics import _to_binary
 
 
-@dataclass(forzen=True)
+@dataclass(frozen=True)
 class AttackEvent:
     start_idx: int  # first attack window
     end_idx: int  # last attack window (inclusive)
@@ -30,7 +30,7 @@ class AttackEvent:
     end_time: float  # seconds: end of the last attack window
 
 
-@dataclass(forzen=True)
+@dataclass(frozen=True)
 class EventDetection:
     event: AttackEvent
     first_alarm_idx: int | None  # None = attack was missed
