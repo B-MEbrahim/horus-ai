@@ -12,8 +12,10 @@ Output row schema (kind == "sample"):
     servo_state, gm_identity, port_state
 
 Events (kind == "event") are non-sample lines worth keeping: port state
-changes (e.g. UNCALIBRATED -> SLAVE) and best-master selection. They are
-how you mark failovers so they are not confused with attacks.
+changes (e.g. UNCALIBRATED -> SLAVE), best-master selection, and ptp4l
+"clockcheck:" warnings (clock frequency changed unexpectedly / clock jumped).
+They are how you mark failovers and clock disturbances so they are not
+confused with attacks, and they are a useful signal in their own right.
 
 Only the standard library is needed.
 """
@@ -68,6 +70,8 @@ _PORT = re.compile(
     r"\s+on\s+(?P<ev>[A-Z_]+)"
 )
 _BEST_MASTER = re.compile(r"selected best master clock\s+(?P<gm>[0-9a-fA-F.]+)")
+# ptp4l's own sanity check, e.g. "clockcheck: clock frequency changed unexpectedly!"
+_CLOCKCHECK = re.compile(r"clockcheck:\s*(?P<msg>.+)")
 _LOCAL_MASTER = re.compile(r"selected local clock\s+(?P<gm>[0-9a-fA-F.]+)\s+as best master")
 
 
@@ -162,6 +166,17 @@ class PtpLogParser:
             self.gm_identity = m["gm"] + "(local)"
             return self._event(ts_wall, ts_mono, "LOCAL_CLOCK_IS_MASTER",
                                None, None, line)
+
+        m = _CLOCKCHECK.search(line)
+        if m:
+            low = m["msg"].lower()
+            if "frequency changed" in low:
+                name = "CLOCKCHECK_FREQ_CHANGED"
+            elif "jump" in low:
+                name = "CLOCKCHECK_JUMP"
+            else:
+                name = "CLOCKCHECK_OTHER"
+            return self._event(ts_wall, ts_mono, name, None, None, line)
 
         self.stats["ignored"] += 1
         return None
@@ -301,6 +316,21 @@ def _selftest() -> None:
     assert samples[4]["ts_wall"] is not None            # syslog prefix
     assert samples[5]["ts_wall"] is not None            # ISO prefix
     assert samples[5]["path_delay_ns"] is None          # optional field
+    # Real lines copied from the network team's test screenshot
+    real = PtpLogParser("ovs1")
+    real_lines = [
+        "ptp4l[12078.188]: clockcheck: clock frequency changed unexpectedly!",
+        "ptp4l[12078.189]: master offset   -4014654 s2 freq +3303740 path delay   4757235",
+        "ptp4l[12079.191]: clockcheck: clock frequency changed unexpectedly!",
+        "ptp4l[12079.191]: master offset    -972835 s2 freq +3606949 path delay   4757235",
+    ]
+    rr = [r for r in (real.parse_line(l) for l in real_lines) if r]
+    assert [r["kind"] for r in rr] == ["event", "sample", "event", "sample"]
+    assert rr[0]["event"] == "CLOCKCHECK_FREQ_CHANGED"
+    assert rr[1]["master_offset_ns"] == -4014654 and rr[1]["freq_ppb"] == 3303740
+    assert rr[1]["path_delay_ns"] == 4757235 and rr[1]["servo_state"] == "s2"
+    assert real.stats["malformed"] == 0
+
     p.update_context(gm_identity="abc.def", port_state="SLAVE")
     live = p.parse_line("ptp4l[110.0]: master offset 1 s2 freq +5 path delay 9",
                         wall_time=1.0)
