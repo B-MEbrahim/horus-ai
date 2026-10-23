@@ -51,6 +51,7 @@ from .metrics import (
     recall,
 )
 from .report import EvaluationReport, evaluate_run
+from .sweep import select_operating_point, sweep, threshold_grid
 
 __all__ = [
     # one-call evaluation
@@ -80,4 +81,8 @@ __all__ = [
     "LeadTimeResult",
     "lead_times",
     "summarize_lead_times",
+    # threshold / debounce sweep
+    "sweep",
+    "select_operating_point",
+    "threshold_grid",
 ]
