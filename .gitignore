@@ -19,3 +19,6 @@ mlruns/
 
 # data
 datasets/
+
+# notebooks
+*.ipynb
