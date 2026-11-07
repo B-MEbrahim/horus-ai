@@ -14,6 +14,7 @@ COPY src ./src
 RUN uv sync --frozen --no-default-groups
 
 ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src" \
     HORUS_WINDOW_SIZE=30
 
 EXPOSE 8000
