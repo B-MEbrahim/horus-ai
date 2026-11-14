@@ -38,3 +38,34 @@ class AttackResult:
 _ATTACKS = {"sudden_jump": sudden_jump, "gradual_drift": gradual_drift}
 
 
+def inject_attack(offsets_ns, t_s, cfg: AttackConfig) -> AttackResult:
+    """Apply the configured attack to ONE tower's offset series."""
+    offsets_ns = np.asarray(offsets_ns, dtype=float)
+    t_s = np.asarray(t_s, dtype=float)
+    if offsets_ns.ndim != 1 or offsets_ns.shape != t_s.shape:
+        raise ValueError("offsets_ns and t_s must be 1-D arrays of the same length")
+
+    if not cfg.enabled:
+        zeros = np.zeros_like(offsets_ns)
+        return AttackResult(offsets_ns.copy(), zeros.astype(int), zeros)
+
+    added_ns, labels = _ATTACKS[cfg.attack_type](t_s, cfg)
+    return AttackResult(offsets_ns + added_ns, labels, added_ns)
+
+
+def inject_attack_towers(series: dict, cfg: AttackConfig) -> dict:
+    """series: {tower_index: (t_s, offsets_ns)} -> {tower_index: AttackResult}.
+
+    Towers not in cfg.affected_towers come back unchanged with all-zero labels.
+    """
+    unknown = set(cfg.affected_towers) - set(series)
+    if unknown:
+        raise ValueError(f"affected_towers not found in data: {sorted(unknown)}")
+
+    clean_cfg = cfg.model_copy(update={"enabled": False})
+    return {
+        tower: inject_attack(
+            offsets, t_s, cfg if tower in cfg.affected_towers else clean_cfg
+        )
+        for tower, (t_s, offsets) in series.items()
+    }
