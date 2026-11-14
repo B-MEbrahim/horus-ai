@@ -30,3 +30,7 @@ train = [
 
 [tool.uv]
 default-groups = ["dev", "train"]
+
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
