@@ -1,7 +1,9 @@
 import numpy as np
 
-from horus_ai.data.attacks import sudden_jump, gradual_drift
+from horus_ai.data.attacks import (sudden_jump, gradual_drift,
+                                   inject_attack, inject_attack_towers)
 from horus_ai.data.config import AttackConfig
+import pytest
 
 T = np.arange(6, dtype=float)  # 0, 1, 2, 3, 4, 5
 
@@ -66,3 +68,41 @@ def test_default_drift_reaches_failure_threshold_in_750_s():
     t = np.array([3600.0, 3600.0 + 750.0])
     added, _ = gradual_drift(t, cfg)
     assert added.tolist() == [0, 1500]
+
+
+def test_inject_adds_attack_and_leaves_input_untouched():
+    clean = np.full(6, 10.0)
+    r = inject_attack(clean, T, make_cfg())
+    assert r.offsets_ns.tolist() == [10, 10, 110, 110, 110, 110]
+    assert r.labels.tolist() == [0, 0, 1, 1, 1, 1]
+    assert clean.tolist() == [10.0] * 6
+
+
+def test_inject_picks_attack_from_attack_type():
+    r = inject_attack(np.zeros(6), T, make_drift_cfg())
+    assert r.added_ns.tolist() == [0, 0, 0, 2, 4, 6]
+
+
+def test_disabled_attack_returns_clean_copy():
+    clean = np.full(6, 10.0)
+    r = inject_attack(clean, T, make_cfg(enabled=False))
+    assert r.offsets_ns.tolist() == clean.tolist()
+    assert not r.labels.any()
+
+
+def test_length_mismatch_raises():
+    with pytest.raises(ValueError):
+        inject_attack(np.zeros(5), T, make_cfg())
+
+
+def test_only_affected_towers_are_attacked():
+    series = {0: (T, np.zeros(6)), 1: (T, np.zeros(6))}
+    res = inject_attack_towers(series, make_cfg(affected_towers=[1]))
+    assert not res[0].labels.any() and not res[0].added_ns.any()
+    assert res[1].labels.tolist() == [0, 0, 1, 1, 1, 1]
+
+
+def test_unknown_tower_raises():
+    series = {0: (T, np.zeros(6))}
+    with pytest.raises(ValueError):
+        inject_attack_towers(series, make_cfg(affected_towers=[3]))
