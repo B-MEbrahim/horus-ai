@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 ServoState = Literal["s0", "s1", "s2"]
-Status = Literal["warming_up", "scoring", "lock_lost"]
+Status = Literal["warming_up", "scoring", "lock_lost", "no_peers"]
 
 
 class TimingSample(BaseModel):
