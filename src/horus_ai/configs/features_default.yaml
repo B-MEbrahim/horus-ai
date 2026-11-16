@@ -1,0 +1,4 @@
+# Windowing settings shared by the feature function, the offline
+# windowing helper, the training pipeline and the API service.
+window_size: 30        # samples per window (about 3.75 s at 8 Hz)
+sample_rate_hz: 8.0    # nominal samples per second from the data agent
