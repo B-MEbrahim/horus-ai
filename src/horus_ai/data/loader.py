@@ -35,9 +35,20 @@ def load_tower_series(path) -> tuple[np.ndarray, np.ndarray]:
     t_s counts seconds from this tower's own first locked sample, so it
     cannot be used to line up different towers (use load_tower_frame).
     """
-    df = load_tower_frame(path)
+    df = pd.read_json(path, lines=True, convert_dates=False)
+    df = df[(df["kind"] == "sample") & (df["servo_state"] == "s2")]
+    df = (
+        df[["ts_mono", "master_offset_ns"]]
+        .dropna()
+        .astype(float)
+        .sort_values("ts_mono")
+    )
+
+    if df.empty:
+        raise ValueError(f"no locked (s2) samples in {path}")
+
     t_s = (df["ts_mono"] - df["ts_mono"].iloc[0]).to_numpy(dtype=float)
-    return t_s, df["offset_ns"].to_numpy(dtype=float)
+    return t_s, df["master_offset_ns"].to_numpy(dtype=float)
 
 
 def load_towers(paths: dict[int, Path]) -> dict[int, tuple[np.ndarray, np.ndarray]]:
