@@ -25,3 +25,5 @@ datasets/
 
 #instructions
 .github/copilot-instructions.md
+
+artifacts/
