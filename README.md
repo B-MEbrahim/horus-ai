@@ -10,6 +10,8 @@ before the 1.5 microsecond failure limit is reached.
 - `src/horus_ai/features`: window features, cross-tower peer deltas, locked/gap-free
   stretches, and training-set construction.
 - `src/horus_ai/models`: the detector interface and the Isolation Forest detector.
+- `src/horus_ai/training`: time-based training, validation operating-point selection,
+  synthetic attack evaluation, and detector artifact creation.
 - `src/horus_ai/api`: FastAPI `/health` and `/predict` endpoints plus peer-aware
   streaming detection.
 - `src/horus_ai/evaluation`: metrics, debouncing, attack-event detection, lead time,
@@ -53,6 +55,27 @@ Supported API environment variables:
 | `HORUS_MODEL_PATH` | Detector artifact path | Placeholder detector |
 | `HORUS_WINDOW_SIZE` | Streaming window length | `30` |
 
+## Offline training
+
+Train the shared Isolation Forest detector from one clean JSONL recording per
+tower:
+
+```powershell
+uv run python -m horus_ai.training.train `
+  --tower 0=datasets\clean\ovs1_20261115T133840Z_onehour.jsonl `
+  --tower 1=datasets\clean\ovs2_20261115T133840Z_onehour.jsonl `
+  --tower 2=datasets\clean\ovs3_20261115T133840Z_onehour.jsonl `
+  --tower 3=datasets\clean\ovs4_20261115T133840Z_onehour.jsonl `
+  --output artifacts\isolation_forest.joblib
+```
+
+The pipeline aligns towers, uses continuous gap-free stretches, fits only on
+clean training windows, selects a threshold and debounce setting on validation
+attacks, evaluates held-out sudden-jump and gradual-drift attacks, and writes
+metadata beside the detector as `isolation_forest.joblib.json`. The metadata
+records the feature order, window settings, tower IDs, selected operating point,
+and evaluation reports.
+
 ## Telemetry agent
 
 The agent tails a `ptp4l` log, enriches parsed samples with `pmc` context, and
@@ -93,7 +116,8 @@ gradual-drift injections.
 
 ## Project status and limitations
 
-- `training/train.py` is not implemented yet.
+- The first `training/train.py` Isolation Forest pipeline is implemented, but
+  its operating point still needs improvement against the protection goal.
 - MLflow helpers are placeholders.
 - SDN-controller alerting is not implemented.
 - The topology and live streaming contract are still being finalized.
