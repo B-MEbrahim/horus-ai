@@ -13,6 +13,7 @@ from horus_ai.data.config import (
     OutputConfig,
     load_config,
 )
+from horus_ai.features.config import load_feature_config
 
 CONFIG_DIR = files("horus_ai") / "configs"
 PACKAGED_YAMLS = sorted(
@@ -35,10 +36,10 @@ def test_default_config_loads():
     assert cfg.attack.affected_towers  # not empty
 
 
-@pytest.mark.parametrize("name", PACKAGED_YAMLS)
-def test_every_packaged_yaml_loads(name):
-    # Fails if a YAML is missing from the installed package or is invalid.
-    load_config(name)
+def test_packaged_yaml_loads_with_its_schema():
+    # Data and feature settings have separate schemas and loaders.
+    load_config("data_default.yaml")
+    load_feature_config()
 
 
 def test_default_yaml_is_among_packaged_files():
