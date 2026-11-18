@@ -26,6 +26,7 @@ train = [
     "onnx>=1.23.2",
     "onnxruntime>=1.30.0",
     "pandas>=3.0.6",
+    "rich>=15.0.0",
 ]
 
 [build-system]
