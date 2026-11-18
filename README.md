@@ -62,12 +62,13 @@ tower:
 
 ```powershell
 uv run python -m horus_ai.training.train `
-  --tower 0=datasets\clean\ovs1_20261115T133840Z_onehour.jsonl `
-  --tower 1=datasets\clean\ovs2_20261115T133840Z_onehour.jsonl `
-  --tower 2=datasets\clean\ovs3_20261115T133840Z_onehour.jsonl `
-  --tower 3=datasets\clean\ovs4_20261115T133840Z_onehour.jsonl `
   --output artifacts\isolation_forest.joblib
 ```
+
+The four `datasets/clean/ovs*_20261115T133840Z_onehour.jsonl` recordings are
+used by default. Override one or more towers with repeatable
+`--tower ID=PATH` arguments. The CLI prints a Rich progress bar and a formatted
+training summary.
 
 The pipeline aligns towers, uses continuous gap-free stretches, fits only on
 clean training windows, selects a threshold and debounce setting on validation

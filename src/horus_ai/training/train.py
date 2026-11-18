@@ -12,11 +12,10 @@ The pipeline keeps the time order of the recording:
 Example:
 
     python -m horus_ai.training.train \
-        --tower 0=datasets/clean/ovs1_20261115T133840Z_onehour.jsonl \
-        --tower 1=datasets/clean/ovs2_20261115T133840Z_onehour.jsonl \
-        --tower 2=datasets/clean/ovs3_20261115T133840Z_onehour.jsonl \
-        --tower 3=datasets/clean/ovs4_20261115T133840Z_onehour.jsonl \
         --output artifacts/isolation_forest.joblib
+
+The four clean 20261115 recordings are used by default. Individual towers
+can be overridden with repeatable `--tower ID=PATH` arguments.
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Callable, Literal, Mapping, Sequence
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -51,6 +50,14 @@ from horus_ai.configs import IsolationForestConfig
 
 
 AttackType = Literal["sudden_jump", "gradual_drift"]
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_TOWER_FILENAMES: dict[int, str] = {
+    0: "ovs1_20261115T133840Z_onehour.jsonl",
+    1: "ovs2_20261115T133840Z_onehour.jsonl",
+    2: "ovs3_20261115T133840Z_onehour.jsonl",
+    3: "ovs4_20261115T133840Z_onehour.jsonl",
+}
 
 
 class TrainingConfig(BaseModel):
@@ -397,19 +404,26 @@ def train(
     output_path: str | Path,
     *,
     config: TrainingConfig | None = None,
+    on_progress: Callable[[str], None] | None = None,
 ) -> TrainingResult:
     """Train, evaluate, and save one detector artifact."""
+    def report(message: str) -> None:
+        if on_progress is not None:
+            on_progress(message)
+
     config = TrainingConfig() if config is None else config
     recording = load_aligned_recording(
         paths,
         tolerance_s=config.align_tolerance_s,
         max_reused_frac=config.max_reused_frac,
     )
+    report("Loading and aligning tower recordings")
     stretches = find_stretches(
         recording.timestamps_s,
         min_length=config.feature.window_size,
         max_gap_s=config.max_gap_s,
     )
+    report("Finding gap-free locked stretches")
     splits = _split_stretches(
         stretches,
         train_fraction=config.train_fraction,
@@ -427,9 +441,11 @@ def train(
     )
     if len(training_set.X) == 0:
         raise ValueError("training split produced no usable feature windows")
+    report("Building clean training windows")
 
     detector = IsolationForestDetector.from_config(config.detector)
     detector.fit(training_set.X)
+    report("Fitting Isolation Forest")
 
     validation_start, validation_end = _split_bounds(
         recording, splits["validation"]
@@ -484,6 +500,7 @@ def train(
         n_consecutive=selected_n,
         stride_seconds=config.stride / config.feature.sample_rate_hz,
     )
+    report("Selecting validation operating point")
 
     test_start, _ = _split_bounds(recording, splits["test"])
     test_runs = _scenario_runs(
@@ -505,6 +522,7 @@ def train(
             n_consecutive=selected_n,
             stride_seconds=config.stride / config.feature.sample_rate_hz,
         ).to_dict()
+    report("Evaluating held-out attack scenarios")
 
     metadata = {
         "schema_version": 1,
@@ -537,6 +555,7 @@ def train(
 
     artifact_path = Path(output_path)
     metadata_path = _write_artifact(detector, artifact_path, metadata)
+    report("Saving detector artifact")
     return TrainingResult(
         artifact_path=artifact_path,
         metadata_path=metadata_path,
@@ -558,22 +577,144 @@ def _parse_tower_argument(value: str) -> tuple[int, Path]:
     return tower, Path(path_text)
 
 
+def default_tower_paths(project_root: Path | None = None) -> dict[int, Path]:
+    """Return the standard clean recording paths for towers 0 through 3."""
+    root = (project_root or PROJECT_ROOT).resolve()
+    cwd = Path.cwd().resolve()
+    paths: dict[int, Path] = {}
+    for tower, filename in DEFAULT_TOWER_FILENAMES.items():
+        packaged = root / "datasets" / "clean" / filename
+        cwd_relative = cwd / "datasets" / "clean" / filename
+        if packaged.is_file():
+            paths[tower] = packaged
+        elif cwd_relative.is_file():
+            paths[tower] = cwd_relative
+        else:
+            paths[tower] = packaged
+    return paths
+
+
+def resolve_tower_paths(
+    overrides: Sequence[tuple[int, Path]] | None = None,
+    *,
+    project_root: Path | None = None,
+) -> dict[int, Path]:
+    """Use default tower recordings, then apply any explicit overrides."""
+    paths = default_tower_paths(project_root)
+    for tower, path in overrides or []:
+        paths[tower] = path
+    return paths
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+    from rich.table import Table
+
+    console = Console()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--tower",
         action="append",
-        required=True,
+        default=None,
         type=_parse_tower_argument,
         metavar="ID=PATH",
-        help="tower JSONL recording; repeat once per tower",
+        help="override one default tower JSONL recording (repeatable)",
     )
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("artifacts/isolation_forest.joblib"),
+        help="detector artifact path (default: artifacts/isolation_forest.joblib)",
+    )
     args = parser.parse_args(argv)
-    paths = dict(args.tower)
-    result = train(paths, args.output)
-    print(json.dumps(result.metadata, indent=2, sort_keys=True))
-    return 0
+
+    try:
+        paths = resolve_tower_paths(args.tower)
+        missing = [path for path in paths.values() if not path.is_file()]
+        if missing:
+            missing_text = "\n".join(f"- {path}" for path in missing)
+            console.print(
+                Panel(
+                    f"[bold]Missing tower recordings:[/bold]\n{missing_text}",
+                    title="[bold red]Training setup failed[/bold red]",
+                    border_style="red",
+                )
+            )
+            return 1
+
+        sources = Table(title="Tower recordings", show_header=True, header_style="bold cyan")
+        sources.add_column("Tower", style="bold")
+        sources.add_column("Recording")
+        for tower in sorted(paths):
+            sources.add_row(str(tower), str(paths[tower]))
+        console.print(sources)
+
+        progress_columns = (
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(bar_width=40),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+        )
+        with Progress(*progress_columns, console=console, transient=False) as progress:
+            task = progress.add_task("[bold cyan]Preparing training job", total=7)
+
+            def update_progress(message: str) -> None:
+                progress.update(task, advance=1, description=f"[bold cyan]{message}")
+
+            result = train(paths, args.output, on_progress=update_progress)
+            progress.update(
+                task,
+                completed=7,
+                description="[bold green]Training completed",
+            )
+
+        summary = Table(show_header=True, header_style="bold cyan")
+        summary.add_column("Metric", style="bold")
+        summary.add_column("Value")
+        summary.add_row("Artifact", str(result.artifact_path))
+        summary.add_row("Metadata", str(result.metadata_path))
+        summary.add_row("Detector", result.metadata["detector"])
+        summary.add_row("Tower count", str(len(result.metadata["tower_ids"])))
+        summary.add_row("Window size", str(result.metadata["window_size"]))
+        summary.add_row("Threshold", f"{result.metadata['threshold']:.6f}")
+        summary.add_row("Debounce N", str(result.metadata["n_consecutive"]))
+        summary.add_row("Train windows", str(result.metadata["split"]["train_windows"]))
+        summary.add_row("Validation windows", str(result.metadata["split"]["validation_windows"]))
+        summary.add_row("Test windows", str(result.metadata["split"]["test_windows"]))
+
+        validation = result.validation_report
+        false_alarm_rate = validation["false_alarms"]["episodes_per_hour"]
+        protection = validation["lead_time"]["protection_rate"]
+        protection_text = "N/A" if protection is None else f"{protection:.1%}"
+        summary.add_row("Validation false alarms/hour", f"{false_alarm_rate:.3f}")
+        summary.add_row("Validation in-time protection", protection_text)
+
+        console.print(
+            Panel(
+                summary,
+                title="[bold green]HORUS Training Summary[/bold green]",
+                border_style="green",
+            )
+        )
+        return 0
+    except Exception as exc:
+        console.print(
+            Panel(
+                f"[bold red]{type(exc).__name__}[/bold red]: {exc}",
+                title="[bold red]Training failed[/bold red]",
+                border_style="red",
+            )
+        )
+        return 1
 
 
 if __name__ == "__main__":
