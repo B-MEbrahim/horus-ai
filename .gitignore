@@ -22,3 +22,6 @@ datasets/
 
 # notebooks
 *.ipynb
+
+#instructions
+.github/copilot-instructions.md
